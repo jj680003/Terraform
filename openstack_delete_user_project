@@ -1,1 +1,62 @@
+terraform {
+  required_providers {
+    openstack = {
+      source  = "terraform-provider-openstack/openstack"
+      version = "~> 1.0"
+    }
+  }
+}
+
+provider "openstack" {
+  user_name   = "admin"
+  tenant_name = "Admin"
+  password    = "ADMIN_PASS"
+  auth_url    = "http://controller:5000/v3"
+  region      = "RegionOne"
+  domain_name = "Default"
+}
+
+# Read the users from the file
+locals {
+  user_list = split("\n", trimspace(file("${path.module}/user.list")))
+}
+
+# Remove the role assignments for each user in the user.list
+resource "openstack_identity_role_assignment_v3" "role_assignment" {
+  for_each = toset(local.user_list)
+
+  user_id    = openstack_identity_user_v3.user[each.key].id
+  project_id = openstack_identity_project_v3.project[each.key].id
+  role_id    = "7156bcb9409c43f497d836097ea6bf50"
+  
+  lifecycle {
+    prevent_destroy = false  # Allow destruction of role assignments
+  }
+  depends_on = [
+    openstack_identity_user_v3.user,
+    openstack_identity_project_v3.project
+  ]
+}
+
+# Remove the users in the user.list
+resource "openstack_identity_user_v3" "user" {
+  for_each = toset(local.user_list)
+
+  name = each.key
+  
+  lifecycle {
+    prevent_destroy = false  # Allow destruction of the users
+  }
+}
+
+# Remove the projects in the user.list
+resource "openstack_identity_project_v3" "project" {
+  for_each = toset(local.user_list)
+
+  name = each.key
+  
+  lifecycle {
+    prevent_destroy = false  # Allow destruction of the projects
+  }
+}
 
